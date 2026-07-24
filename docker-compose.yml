@@ -5,7 +5,7 @@ services:
       dockerfile: app/Dockerfile
     container_name: hit-switchbot-webui
     ports:
-      - "${APP_PORT:-8092}:${APP_PORT:-8092}"
+      - "8092:8092"
     env_file:
-      - .env
+      - app.env
     restart: unless-stopped

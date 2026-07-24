@@ -69,10 +69,10 @@ hit-switchbot-webui コンテナ
 ```bash
 git clone git@github.com:hit1023/hit-switchbot-webui.git
 cd hit-switchbot-webui
-cp .env.example .env
+cp app.env.example app.env
 ```
 
-`.env`を編集し、以下を設定します。
+`app.env`を編集し、以下を設定します。
 
 | 変数名 | 説明 |
 |---|---|
@@ -102,7 +102,7 @@ python3 -c "from passlib.context import CryptContext; print(CryptContext(schemes
 docker compose up -d --build
 ```
 
-起動後、`http://<ホスト>:8092`（`APP_PORT`を変更した場合はそのポート）にアクセスするとログイン画面が表示されます。
+起動後、`http://<ホスト>:8092`にアクセスするとログイン画面が表示されます。ポートを変更したい場合は`app.env`の`APP_PORT`と`docker-compose.yml`の`ports`を両方書き換えてください。
 
 ### 3. 動作確認（API単体）
 
@@ -155,7 +155,7 @@ hit-switchbot-webui/
 ├── webui/
 │   └── index.html           # ログイン画面 + デバイス操作UI(単一ページ)
 ├── docker-compose.yml
-├── .env.example
+├── app.env.example
 └── README.md
 ```
 
@@ -163,7 +163,7 @@ hit-switchbot-webui/
 
 ## 注意事項
 
-- 鍵の施錠/解錠を外部公開するツールのため、`.env`の値（特に`SWITCHBOT_TOKEN`/`SWITCHBOT_SECRET`, `ADMIN_PASSWORD_HASH`）は厳重に管理し、リポジトリにコミットしないでください（`.gitignore`で除外済み）。
+- 鍵の施錠/解錠を外部公開するツールのため、`app.env`の値（特に`SWITCHBOT_TOKEN`/`SWITCHBOT_SECRET`, `ADMIN_PASSWORD_HASH`）は厳重に管理し、リポジトリにコミットしないでください（`.gitignore`で除外済み）。
 - SwitchBot Cloud APIには1日あたりのコール数上限があるため、WebUIは自動ポーリングを行わず手動更新ボタンのみで動作します。
 - 赤外線経由のデバイス（エアコン等）はSwitchBot側から実際の電源状態を取得できないため、WebUI上では「最後に送信した設定」のみを表示します。
 - ログイン試行は5回失敗すると5分間ロックアウトされます（プロセス内メモリで管理のため、コンテナ再起動でリセットされます）。
