@@ -6,6 +6,6 @@ services:
     container_name: hit-switchbot-webui
     ports:
       - "8092:8092"
-    env_file:
-      - app.env
+    volumes:
+      - ./app.env:/secrets/app.env:ro
     restart: unless-stopped

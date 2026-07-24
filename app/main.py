@@ -1,5 +1,13 @@
 import logging
 
+from dotenv import load_dotenv
+
+# Docker Composeの変数展開("$"を含む値、特にbcryptハッシュを誤解釈する)を
+# 避けるため、環境変数はenvironment:/env_file:を使わずファイルマウント経由で
+# 直接読み込む。他のモジュールが起動時にos.environを参照するため、必ず
+# それらをimportするより前に実行すること。
+load_dotenv("/secrets/app.env")
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
