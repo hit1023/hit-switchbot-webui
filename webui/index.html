@@ -287,7 +287,7 @@ function renderLocks(locks) {
         <button class="small" data-action="lock">施錠</button>
       </div>
     `;
-    card.querySelector('[data-action="status"]').addEventListener('click', () => refreshLockStatus(lock));
+    card.querySelector('[data-action="status"]').addEventListener('click', () => refreshLockStatus(lock, true));
     card.querySelector('[data-action="lock"]').addEventListener('click', () => sendLockCommand(lock, 'lock'));
     card.querySelector('[data-action="unlock"]').addEventListener('click', () => {
       if (confirm(`${lock.deviceName} を解錠します。よろしいですか？`)) {
@@ -299,21 +299,27 @@ function renderLocks(locks) {
   }
 }
 
-async function refreshLockStatus(lock) {
+async function refreshLockStatus(lock, manual = false) {
   const badge = document.getElementById(`lock-status-${lock.deviceId}`);
+  if (manual) {
+    badge.textContent = '確認中...';
+    badge.className = 'status-badge';
+  }
   try {
     const status = await api(`/devices/${lock.deviceId}/status`);
     const state = (status.lockState || '').toUpperCase();
+    let label = state || '不明';
     if (state === 'LOCKED') {
-      badge.textContent = '施錠中';
+      label = '施錠中';
       badge.className = 'status-badge locked';
     } else if (state === 'UNLOCKED') {
-      badge.textContent = '解錠中';
+      label = '解錠中';
       badge.className = 'status-badge unlocked';
     } else {
-      badge.textContent = state || '不明';
       badge.className = 'status-badge';
     }
+    badge.textContent = label;
+    if (manual) toast(`${lock.deviceName}: ${label}`);
   } catch (err) {
     badge.textContent = '取得失敗';
     badge.className = 'status-badge';
