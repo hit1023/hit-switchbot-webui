@@ -122,13 +122,19 @@ async def _ensure_webhook_registered() -> None:
         return
 
     target_url = f"{public_base_url}/api/webhook/switchbot/{webhook_token}"
+
+    # queryWebhookはWebhook未登録の場合statusCode!=100(エラー扱い)を返すため、
+    # 「未登録」として扱いsetupWebhookに進む。
     try:
         current = await switchbot_client.query_webhook_url()
         urls = current.get("urls", [])
+    except switchbot_client.SwitchBotAPIError:
+        urls = []
+
+    try:
         if target_url in urls:
             logger.info("Webhookは登録済みです: %s", target_url)
-            return
-        if urls:
+        elif urls:
             await switchbot_client.update_webhook(target_url)
             logger.info("Webhook URLを更新しました: %s", target_url)
         else:
