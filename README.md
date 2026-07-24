@@ -14,6 +14,7 @@ SwitchBotのtoken/secretはサーバー側(バックエンド)でのみ保持し
 | 鍵の施錠/解錠 | Smart Lock系デバイスへlock/unlockコマンドを送信、現在の施錠状態も確認 |
 | エアコン操作 | Hub経由の赤外線リモコンへON/OFF・温度・モード・風速を指定してsetAllコマンドを送信 |
 | 認証 | JWTによるログイン認証。ログイン失敗が続くとロックアウト(5回失敗で5分間ロック) |
+| 実行ログ | 送信したコマンド(施錠/解錠・エアコン操作)の日時・実行者・結果をSQLite(`/data/history.db`)に記録しWebUIに表示 |
 
 対応デバイスタイプはSwitchBot Open APIが返す`deviceType`/`remoteType`をもとに自動分類しています（`Lock`を含むものは鍵カード、`Air Conditioner`または名前に「エアコン」を含む赤外線デバイスはエアコンカード、それ以外は情報表示のみのカードとして表示）。他のデバイス種別を操作したい場合は [`app/main.py`](app/main.py) にエンドポイントを、[`webui/index.html`](webui/index.html) に対応するカードを追加してください。
 

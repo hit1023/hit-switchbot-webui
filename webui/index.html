@@ -119,6 +119,12 @@
 
   .btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 
+  .log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .log-table th, .log-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .log-table th { color: var(--text-muted); font-weight: 500; }
+  .log-table .ok { color: var(--success); }
+  .log-table .ng { color: var(--danger); }
+
   .aircon-controls { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
   .temp-row { display: flex; align-items: center; gap: 10px; }
   .temp-row .temp-value { font-size: 20px; font-weight: 600; min-width: 46px; text-align: center; }
@@ -165,6 +171,16 @@
 
     <div class="section-header"><h2>ハブ・その他</h2></div>
     <div class="grid" id="other-grid"></div>
+
+    <div class="section-header"><h2>実行ログ</h2></div>
+    <div class="card">
+      <table class="log-table" id="log-table">
+        <thead>
+          <tr><th>日時</th><th>デバイス</th><th>コマンド</th><th>結果</th></tr>
+        </thead>
+        <tbody id="log-tbody"></tbody>
+      </table>
+    </div>
   </main>
 </div>
 
@@ -205,6 +221,33 @@ function showApp() {
   document.getElementById('login-view').classList.add('hidden');
   document.getElementById('app-view').classList.remove('hidden');
   loadDevices();
+  loadLogs();
+}
+
+async function loadLogs() {
+  const tbody = document.getElementById('log-tbody');
+  try {
+    const logs = await api('/logs?limit=50');
+    if (logs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);">ログはまだありません</td></tr>';
+      return;
+    }
+    tbody.innerHTML = logs
+      .map((l) => {
+        const time = new Date(l.ts).toLocaleString('ja-JP');
+        const resultClass = l.success ? 'ok' : 'ng';
+        const resultText = l.success ? '成功' : `失敗${l.detail ? ' (' + l.detail + ')' : ''}`;
+        return `<tr>
+          <td>${time}</td>
+          <td>${l.device_name || l.device_id}</td>
+          <td>${l.command} ${l.parameter}</td>
+          <td class="${resultClass}">${resultText}</td>
+        </tr>`;
+      })
+      .join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger);">${err.message}</td></tr>`;
+  }
 }
 
 function logout() {
@@ -231,7 +274,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 });
 
 document.getElementById('logout-btn').addEventListener('click', logout);
-document.getElementById('refresh-btn').addEventListener('click', loadDevices);
+document.getElementById('refresh-btn').addEventListener('click', () => { loadDevices(); loadLogs(); });
 
 // ---------- device rendering ----------
 
@@ -331,10 +374,11 @@ async function sendLockCommand(lock, command) {
   try {
     await api(`/devices/${lock.deviceId}/commands`, {
       method: 'POST',
-      body: JSON.stringify({ command, parameter: 'default', commandType: 'command' }),
+      body: JSON.stringify({ command, parameter: 'default', commandType: 'command', deviceName: lock.deviceName }),
     });
     toast(`${lock.deviceName} に ${command === 'lock' ? '施錠' : '解錠'} を送信しました`);
     setTimeout(() => refreshLockStatus(lock), 1500);
+    loadLogs();
   } catch (err) {
     toast(err.message);
   }
@@ -409,9 +453,10 @@ async function sendAirconCommand(ac, power) {
   try {
     await api(`/devices/${ac.deviceId}/commands`, {
       method: 'POST',
-      body: JSON.stringify({ command: 'setAll', parameter, commandType: 'command' }),
+      body: JSON.stringify({ command: 'setAll', parameter, commandType: 'command', deviceName: ac.deviceName }),
     });
     toast(`${ac.deviceName} に設定を送信しました (${parameter})`);
+    loadLogs();
   } catch (err) {
     toast(err.message);
   }

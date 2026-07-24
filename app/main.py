@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import auth, switchbot_client
+from . import auth, history, switchbot_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("hit-switchbot-webui")
@@ -34,6 +34,7 @@ class CommandRequest(BaseModel):
     command: str
     parameter: str = "default"
     commandType: str = "command"
+    deviceName: str = ""
 
 
 @app.post("/api/login", response_model=LoginResponse)
@@ -68,15 +69,23 @@ async def device_status(device_id: str, _user: str = Depends(auth.get_current_us
 
 @app.post("/api/devices/{device_id}/commands")
 async def device_command(
-    device_id: str, req: CommandRequest, _user: str = Depends(auth.get_current_user)
+    device_id: str, req: CommandRequest, user: str = Depends(auth.get_current_user)
 ):
     logger.info("command sent: device=%s command=%s parameter=%s", device_id, req.command, req.parameter)
     try:
-        return await switchbot_client.send_command(
+        result = await switchbot_client.send_command(
             device_id, req.command, req.parameter, req.commandType
         )
+        history.record(user, device_id, req.deviceName, req.command, req.parameter, success=True)
+        return result
     except switchbot_client.SwitchBotAPIError as e:
+        history.record(user, device_id, req.deviceName, req.command, req.parameter, success=False, detail=e.message)
         raise HTTPException(status_code=502, detail=e.message)
+
+
+@app.get("/api/logs")
+def logs(limit: int = 50, _user: str = Depends(auth.get_current_user)):
+    return history.list_recent(limit)
 
 
 # ============================================================
