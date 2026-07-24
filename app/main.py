@@ -1,4 +1,5 @@
 import logging
+import os
 
 from dotenv import load_dotenv
 
@@ -8,7 +9,7 @@ from dotenv import load_dotenv
 # それらをimportするより前に実行すること。
 load_dotenv("/secrets/app.env")
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -86,6 +87,60 @@ async def device_command(
 @app.get("/api/logs")
 def logs(limit: int = 50, _user: str = Depends(auth.get_current_user)):
     return history.list_recent(limit)
+
+
+# ============================================================
+# SwitchBot Webhook — 鍵の物理的な施錠/解錠(アプリ/指紋/キーパッド等、
+# 経路を問わない)をリアルタイムに検知してログに記録する。
+# URLにWEBHOOK_PATH_TOKENを含めることで、正規のURLを知らない第三者からの
+# 書き込みを防ぐ(SwitchBot側はWebhookに署名等の検証手段を提供していないため)。
+# ============================================================
+@app.post("/api/webhook/switchbot/{token}")
+async def switchbot_webhook(token: str, request: Request):
+    expected = os.environ.get("WEBHOOK_PATH_TOKEN")
+    if not expected or token != expected:
+        raise HTTPException(status_code=404)
+
+    body = await request.json()
+    events = body if isinstance(body, list) else [body]
+    for event in events:
+        context = event.get("context", {})
+        lock_state = context.get("lockState")
+        if lock_state is None:
+            continue
+        device_mac = context.get("deviceMac", "unknown")
+        logger.info("webhook lock event: device=%s lockState=%s", device_mac, lock_state)
+        history.record("(device)", device_mac, device_mac, "状態変化", lock_state, success=True)
+    return {"result": "ok"}
+
+
+async def _ensure_webhook_registered() -> None:
+    public_base_url = os.environ.get("PUBLIC_BASE_URL")
+    webhook_token = os.environ.get("WEBHOOK_PATH_TOKEN")
+    if not public_base_url or not webhook_token:
+        logger.warning("PUBLIC_BASE_URL/WEBHOOK_PATH_TOKENが未設定のためWebhook登録をスキップします")
+        return
+
+    target_url = f"{public_base_url}/api/webhook/switchbot/{webhook_token}"
+    try:
+        current = await switchbot_client.query_webhook_url()
+        urls = current.get("urls", [])
+        if target_url in urls:
+            logger.info("Webhookは登録済みです: %s", target_url)
+            return
+        if urls:
+            await switchbot_client.update_webhook(target_url)
+            logger.info("Webhook URLを更新しました: %s", target_url)
+        else:
+            await switchbot_client.setup_webhook(target_url)
+            logger.info("Webhookを新規登録しました: %s", target_url)
+    except switchbot_client.SwitchBotAPIError as e:
+        logger.error("Webhook登録に失敗しました: %s", e.message)
+
+
+@app.on_event("startup")
+async def on_startup() -> None:
+    await _ensure_webhook_registered()
 
 
 # ============================================================

@@ -69,3 +69,23 @@ async def send_command(
         f"/devices/{device_id}/commands",
         json={"command": command, "parameter": parameter, "commandType": command_type},
     )
+
+
+async def query_webhook_url() -> dict:
+    return await _request("POST", "/webhook/queryWebhook", json={"action": "queryUrl"})
+
+
+async def setup_webhook(url: str) -> dict:
+    return await _request(
+        "POST",
+        "/webhook/setupWebhook",
+        json={"action": "setupWebhook", "url": url, "deviceList": "ALL"},
+    )
+
+
+async def update_webhook(url: str) -> dict:
+    return await _request(
+        "POST",
+        "/webhook/updateWebhook",
+        json={"action": "updateWebhook", "config": {"url": url, "enable": True}},
+    )

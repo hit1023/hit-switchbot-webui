@@ -15,6 +15,7 @@ SwitchBotのtoken/secretはサーバー側(バックエンド)でのみ保持し
 | エアコン操作 | Hub経由の赤外線リモコンへON/OFF・温度・モード・風速を指定してsetAllコマンドを送信 |
 | 認証 | JWTによるログイン認証。ログイン失敗が続くとロックアウト(5回失敗で5分間ロック) |
 | 実行ログ | 送信したコマンド(施錠/解錠・エアコン操作)の日時・実行者・結果をSQLite(`/data/history.db`)に記録しWebUIに表示 |
+| 鍵の状態変化ログ(Webhook) | SwitchBot Webhookを使い、アプリ/指紋認証/キーパッド等、経路を問わず鍵が実際に施錠/解錠された変化をリアルタイムに検知してログへ記録(誰が/どの方法で操作したかまでは取得不可、状態が変わった事実のみ) |
 
 対応デバイスタイプはSwitchBot Open APIが返す`deviceType`/`remoteType`をもとに自動分類しています（`Lock`を含むものは鍵カード、`Air Conditioner`または名前に「エアコン」を含む赤外線デバイスはエアコンカード、それ以外は情報表示のみのカードとして表示）。他のデバイス種別を操作したい場合は [`app/main.py`](app/main.py) にエンドポイントを、[`webui/index.html`](webui/index.html) に対応するカードを追加してください。
 
@@ -84,6 +85,8 @@ cp app.env.example app.env
 | `ADMIN_PASSWORD_HASH` | ログインパスワードのbcryptハッシュ。平文は保存しない |
 | `JWT_EXPIRE_HOURS` | JWTトークンの有効期限(時間)。外部公開時は短めを推奨（デフォルト: `24`） |
 | `APP_PORT` | WebUI/APIの待受ポート（デフォルト: `8092`） |
+| `PUBLIC_BASE_URL` | このアプリの外部公開URL（例: `https://switchbot.example.com`）。鍵のWebhookログ機能を使う場合のみ必須 |
+| `WEBHOOK_PATH_TOKEN` | Webhook受信URLに含めるランダムトークン。下記コマンドで生成 |
 
 `APP_SECRET_KEY`の生成:
 
@@ -95,6 +98,12 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 
 ```bash
 python3 -c "from passlib.context import CryptContext; print(CryptContext(schemes=['bcrypt']).hash('好きなパスワード'))"
+```
+
+`WEBHOOK_PATH_TOKEN`の生成:
+
+```bash
+python3 -c "import secrets; print(secrets.token_hex(16))"
 ```
 
 ### 2. 起動
@@ -168,6 +177,7 @@ hit-switchbot-webui/
 - SwitchBot Cloud APIには1日あたりのコール数上限があるため、WebUIは自動ポーリングを行わず手動更新ボタンのみで動作します。
 - 赤外線経由のデバイス（エアコン等）はSwitchBot側から実際の電源状態を取得できないため、WebUI上では「最後に送信した設定」のみを表示します。
 - ログイン試行は5回失敗すると5分間ロックアウトされます（プロセス内メモリで管理のため、コンテナ再起動でリセットされます）。
+- `PUBLIC_BASE_URL`/`WEBHOOK_PATH_TOKEN`を設定すると、起動時にSwitchBot側へWebhook URL(`{PUBLIC_BASE_URL}/api/webhook/switchbot/{WEBHOOK_PATH_TOKEN}`)を自動登録します。このURLはJWT認証を通さない受信専用エンドポイントで、パスに含めたランダムトークンのみが正当性の担保です（SwitchBot Webhookには署名検証の仕組みがないため）。トークンが漏れると誰でもログに偽のイベントを書き込めてしまう点に注意してください（デバイス自体を操作されるわけではありません）。
 
 ---
 
