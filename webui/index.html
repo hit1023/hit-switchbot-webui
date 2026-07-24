@@ -169,6 +169,12 @@
     <div class="section-header"><h2>エアコン</h2></div>
     <div class="grid" id="aircon-grid"></div>
 
+    <div class="section-header"><h2>扇風機</h2></div>
+    <div class="grid" id="fan-grid"></div>
+
+    <div class="section-header"><h2>ライト</h2></div>
+    <div class="grid" id="light-grid"></div>
+
     <div class="section-header"><h2>ハブ・その他</h2></div>
     <div class="grid" id="other-grid"></div>
 
@@ -278,7 +284,7 @@ document.getElementById('refresh-btn').addEventListener('click', () => { loadDev
 
 // ---------- device rendering ----------
 
-let deviceCache = { locks: [], aircons: [], others: [] };
+let deviceCache = { locks: [], aircons: [], fans: [], lights: [], others: [] };
 
 function classify(deviceList, infraredList) {
   const locks = [];
@@ -293,17 +299,27 @@ function classify(deviceList, infraredList) {
   const aircons = (infraredList || []).filter(
     (d) => d.remoteType === 'Air Conditioner' || (d.deviceName || '').includes('エアコン')
   );
-  const otherIr = (infraredList || []).filter((d) => !aircons.includes(d));
-  return { locks, aircons, others: others.concat(otherIr) };
+  const fans = (infraredList || []).filter(
+    (d) => d.remoteType === 'Fan' || (d.deviceName || '').includes('扇風機')
+  );
+  const lights = (infraredList || []).filter(
+    (d) => d.remoteType === 'Light' || (d.deviceName || '').match(/ライト|照明|電気/)
+  );
+  const otherIr = (infraredList || []).filter(
+    (d) => !aircons.includes(d) && !fans.includes(d) && !lights.includes(d)
+  );
+  return { locks, aircons, fans, lights, others: others.concat(otherIr) };
 }
 
 async function loadDevices() {
   try {
     const data = await api('/devices');
-    const { locks, aircons, others } = classify(data.deviceList || [], data.infraredRemoteList || []);
-    deviceCache = { locks, aircons, others };
+    const { locks, aircons, fans, lights, others } = classify(data.deviceList || [], data.infraredRemoteList || []);
+    deviceCache = { locks, aircons, fans, lights, others };
     renderLocks(locks);
     renderAircons(aircons);
+    renderFans(fans);
+    renderLights(lights);
     renderOthers(others);
   } catch (err) {
     toast(err.message);
@@ -459,6 +475,76 @@ async function sendAirconCommand(ac, power) {
     loadLogs();
   } catch (err) {
     toast(err.message);
+  }
+}
+
+async function sendIrCommand(device, command, label) {
+  try {
+    await api(`/devices/${device.deviceId}/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ command, parameter: 'default', commandType: 'command', deviceName: device.deviceName }),
+    });
+    toast(`${device.deviceName} に${label}を送信しました`);
+    loadLogs();
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+function renderFans(fans) {
+  const grid = document.getElementById('fan-grid');
+  grid.innerHTML = '';
+  if (fans.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">扇風機(赤外線)デバイスが見つかりません</p>';
+    return;
+  }
+  for (const fan of fans) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-title">🌀 ${fan.deviceName}</div>
+      <div class="card-sub">赤外線経由のため実際の状態は確認できません</div>
+      <div class="btn-row">
+        <button class="small" data-cmd="turnOn">ON</button>
+        <button class="small secondary" data-cmd="turnOff">OFF</button>
+        <button class="small secondary" data-cmd="lowSpeed">弱</button>
+        <button class="small secondary" data-cmd="middleSpeed">中</button>
+        <button class="small secondary" data-cmd="highSpeed">強</button>
+        <button class="small secondary" data-cmd="swing">首振り</button>
+        <button class="small secondary" data-cmd="timer">タイマー</button>
+      </div>
+    `;
+    card.querySelectorAll('[data-cmd]').forEach((btn) => {
+      btn.addEventListener('click', () => sendIrCommand(fan, btn.dataset.cmd, btn.textContent));
+    });
+    grid.appendChild(card);
+  }
+}
+
+function renderLights(lights) {
+  const grid = document.getElementById('light-grid');
+  grid.innerHTML = '';
+  if (lights.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">ライト(赤外線)デバイスが見つかりません</p>';
+    return;
+  }
+  for (const light of lights) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-title">💡 ${light.deviceName}</div>
+      <div class="card-sub">赤外線経由のため実際の状態は確認できません</div>
+      <div class="btn-row">
+        <button class="small" data-cmd="turnOn">ON</button>
+        <button class="small secondary" data-cmd="turnOff">OFF</button>
+        <button class="small secondary" data-cmd="brightnessUp">明るく</button>
+        <button class="small secondary" data-cmd="brightnessDown">暗く</button>
+      </div>
+    `;
+    card.querySelectorAll('[data-cmd]').forEach((btn) => {
+      btn.addEventListener('click', () => sendIrCommand(light, btn.dataset.cmd, btn.textContent));
+    });
+    grid.appendChild(card);
   }
 }
 

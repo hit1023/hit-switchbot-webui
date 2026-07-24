@@ -16,8 +16,10 @@ SwitchBotのtoken/secretはサーバー側(バックエンド)でのみ保持し
 | 認証 | JWTによるログイン認証。ログイン失敗が続くとロックアウト(5回失敗で5分間ロック) |
 | 実行ログ | 送信したコマンド(施錠/解錠・エアコン操作)の日時・実行者・結果をSQLite(`/data/history.db`)に記録しWebUIに表示 |
 | 鍵の状態変化ログ(Webhook) | SwitchBot Webhookを使い、アプリ/指紋認証/キーパッド等、経路を問わず鍵が実際に施錠/解錠された変化をリアルタイムに検知してログへ記録(誰が/どの方法で操作したかまでは取得不可、状態が変わった事実のみ) |
+| 扇風機操作 | Hub経由の赤外線リモコンへON/OFF・風量(弱/中/強)・首振り・タイマーのコマンドを送信 |
+| ライト操作 | Hub経由の赤外線リモコンへON/OFF・明るさ調整のコマンドを送信 |
 
-対応デバイスタイプはSwitchBot Open APIが返す`deviceType`/`remoteType`をもとに自動分類しています（`Lock`を含むものは鍵カード、`Air Conditioner`または名前に「エアコン」を含む赤外線デバイスはエアコンカード、それ以外は情報表示のみのカードとして表示）。他のデバイス種別を操作したい場合は [`app/main.py`](app/main.py) にエンドポイントを、[`webui/index.html`](webui/index.html) に対応するカードを追加してください。
+対応デバイスタイプはSwitchBot Open APIが返す`deviceType`/`remoteType`をもとに自動分類しています（`Lock`を含むものは鍵カード、`remoteType`が`Air Conditioner`/`Fan`/`Light`(または名前に「エアコン」「扇風機」「ライト/照明/電気」を含む)赤外線デバイスはそれぞれ専用カード、それ以外は情報表示のみのカードとして表示）。デバイス一覧・状態取得・コマンド送信のAPI自体はどのdeviceType/remoteTypeでも汎用的に動作するため、新しい赤外線リモコンをSwitchBotアプリに登録した時点でリストには表示されます（専用の操作ボタンが欲しい場合のみ、対応が必要）。他のデバイス種別に専用の操作カードを追加したい場合は [`webui/index.html`](webui/index.html) の`classify()`とレンダリング関数を参考にしてください。SwitchBot側の対応コマンド一覧は[Virtual infrared remote devices](https://github.com/OpenWonderLabs/SwitchBotAPI/blob/main/devices/others/virtual-infrared-remote-devices.md)を参照してください。
 
 ---
 
