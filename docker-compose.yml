@@ -1,0 +1,17 @@
+services:
+  hit-switchbot-webui:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    container_name: hit-switchbot-webui
+    ports:
+      - "${APP_PORT:-8092}:${APP_PORT:-8092}"
+    environment:
+      SWITCHBOT_TOKEN: ${SWITCHBOT_TOKEN}
+      SWITCHBOT_SECRET: ${SWITCHBOT_SECRET}
+      APP_SECRET_KEY: ${APP_SECRET_KEY}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
+      JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-24}
+      APP_PORT: ${APP_PORT:-8092}
+    restart: unless-stopped

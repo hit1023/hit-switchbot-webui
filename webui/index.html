@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hit-switchbot-webui | SwitchBot管理</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --card-bg: #ffffff;
+    --border: #e0e4ec;
+    --text: #1f2430;
+    --text-muted: #6b7280;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --danger: #dc2626;
+    --danger-hover: #b91c1c;
+    --success: #16a34a;
+    --warn: #d97706;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .hidden { display: none !important; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radius);
+    padding: 8px 14px;
+    font-size: 14px;
+    background: var(--primary);
+    color: #fff;
+    transition: background .15s;
+  }
+  button:hover { background: var(--primary-hover); }
+  button:disabled { background: #9ca3af; cursor: not-allowed; }
+  button.secondary { background: #6b7280; }
+  button.secondary:hover { background: #4b5563; }
+  button.danger { background: var(--danger); }
+  button.danger:hover { background: var(--danger-hover); }
+  button.small { padding: 4px 10px; font-size: 12px; margin-right: 4px; }
+  input, select {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+    color: var(--text);
+  }
+  label { display: block; font-size: 13px; color: var(--text-muted); margin: 10px 0 4px; }
+
+  /* ---------- login ---------- */
+  #login-view {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .login-box {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 36px 32px;
+    width: 320px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  .login-box h1 { margin: 0 0 4px; font-size: 22px; }
+  .login-box p { color: var(--text-muted); margin: 0 0 20px; font-size: 13px; }
+  .login-box form { display: flex; flex-direction: column; gap: 10px; }
+  .login-box input { width: 100%; }
+  .login-box button { margin-top: 6px; padding: 10px; }
+  .error-text { color: var(--danger); font-size: 13px; min-height: 18px; margin: 10px 0 0; }
+
+  /* ---------- app shell ---------- */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 24px;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  .header-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-muted); }
+
+  main { padding: 20px 24px 60px; max-width: 900px; margin: 0 auto; }
+
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin: 24px 0 12px; }
+  .section-header h2 { font-size: 15px; margin: 0; color: var(--text-muted); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .card-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .card-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+  .status-badge {
+    display: inline-block;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #eef1f7;
+    color: var(--text-muted);
+  }
+  .status-badge.on { background: #dcfce7; color: var(--success); }
+  .status-badge.locked { background: #dcfce7; color: var(--success); }
+  .status-badge.unlocked { background: #fee2e2; color: var(--danger); }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  .aircon-controls { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .temp-row { display: flex; align-items: center; gap: 10px; }
+  .temp-row .temp-value { font-size: 20px; font-weight: 600; min-width: 46px; text-align: center; }
+  .aircon-controls select { flex: 1; }
+  .select-row { display: flex; gap: 8px; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: #fff; padding: 10px 18px; border-radius: var(--radius);
+    font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="login-view">
+  <div class="login-box">
+    <h1>SwitchBot管理</h1>
+    <p>ログインしてください</p>
+    <form id="login-form">
+      <input type="text" id="login-username" placeholder="ユーザー名" autocomplete="username" required>
+      <input type="password" id="login-password" placeholder="パスワード" autocomplete="current-password" required>
+      <button type="submit">ログイン</button>
+      <div class="error-text" id="login-error"></div>
+    </form>
+  </div>
+</div>
+
+<div id="app-view" class="hidden">
+  <header>
+    <h1>SwitchBot管理</h1>
+    <div class="header-right">
+      <button class="secondary small" id="refresh-btn">更新</button>
+      <button class="secondary small" id="logout-btn">ログアウト</button>
+    </div>
+  </header>
+  <main>
+    <div class="section-header"><h2>鍵</h2></div>
+    <div class="grid" id="lock-grid"></div>
+
+    <div class="section-header"><h2>エアコン</h2></div>
+    <div class="grid" id="aircon-grid"></div>
+
+    <div class="section-header"><h2>ハブ・その他</h2></div>
+    <div class="grid" id="other-grid"></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API_BASE = '/api';
+let token = null;
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(API_BASE + path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  if (res.status === 401) {
+    logout();
+    throw new Error('認証が切れました。再度ログインしてください');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.detail || 'エラーが発生しました');
+  }
+  return data;
+}
+
+function showApp() {
+  document.getElementById('login-view').classList.add('hidden');
+  document.getElementById('app-view').classList.remove('hidden');
+  loadDevices();
+}
+
+function logout() {
+  token = null;
+  sessionStorage.removeItem('sb_token');
+  document.getElementById('app-view').classList.add('hidden');
+  document.getElementById('login-view').classList.remove('hidden');
+}
+
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = document.getElementById('login-username').value;
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  try {
+    const data = await api('/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+    token = data.access_token;
+    sessionStorage.setItem('sb_token', token);
+    showApp();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+});
+
+document.getElementById('logout-btn').addEventListener('click', logout);
+document.getElementById('refresh-btn').addEventListener('click', loadDevices);
+
+// ---------- device rendering ----------
+
+let deviceCache = { locks: [], aircons: [], others: [] };
+
+function classify(deviceList, infraredList) {
+  const locks = [];
+  const others = [];
+  for (const d of deviceList) {
+    if (d.deviceType && d.deviceType.includes('Lock')) {
+      locks.push(d);
+    } else {
+      others.push(d);
+    }
+  }
+  const aircons = (infraredList || []).filter(
+    (d) => d.remoteType === 'Air Conditioner' || (d.deviceName || '').includes('エアコン')
+  );
+  const otherIr = (infraredList || []).filter((d) => !aircons.includes(d));
+  return { locks, aircons, others: others.concat(otherIr) };
+}
+
+async function loadDevices() {
+  try {
+    const data = await api('/devices');
+    const { locks, aircons, others } = classify(data.deviceList || [], data.infraredRemoteList || []);
+    deviceCache = { locks, aircons, others };
+    renderLocks(locks);
+    renderAircons(aircons);
+    renderOthers(others);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+function renderLocks(locks) {
+  const grid = document.getElementById('lock-grid');
+  grid.innerHTML = '';
+  if (locks.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">鍵デバイスが見つかりません</p>';
+    return;
+  }
+  for (const lock of locks) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-title">🔒 ${lock.deviceName}</div>
+      <div class="card-sub">${lock.deviceType}</div>
+      <span class="status-badge" id="lock-status-${lock.deviceId}">状態未取得</span>
+      <div class="btn-row">
+        <button class="small" data-action="status">状態確認</button>
+        <button class="small danger" data-action="unlock">解錠</button>
+        <button class="small" data-action="lock">施錠</button>
+      </div>
+    `;
+    card.querySelector('[data-action="status"]').addEventListener('click', () => refreshLockStatus(lock));
+    card.querySelector('[data-action="lock"]').addEventListener('click', () => sendLockCommand(lock, 'lock'));
+    card.querySelector('[data-action="unlock"]').addEventListener('click', () => {
+      if (confirm(`${lock.deviceName} を解錠します。よろしいですか？`)) {
+        sendLockCommand(lock, 'unlock');
+      }
+    });
+    grid.appendChild(card);
+    refreshLockStatus(lock);
+  }
+}
+
+async function refreshLockStatus(lock) {
+  const badge = document.getElementById(`lock-status-${lock.deviceId}`);
+  try {
+    const status = await api(`/devices/${lock.deviceId}/status`);
+    const state = (status.lockState || '').toUpperCase();
+    if (state === 'LOCKED') {
+      badge.textContent = '施錠中';
+      badge.className = 'status-badge locked';
+    } else if (state === 'UNLOCKED') {
+      badge.textContent = '解錠中';
+      badge.className = 'status-badge unlocked';
+    } else {
+      badge.textContent = state || '不明';
+      badge.className = 'status-badge';
+    }
+  } catch (err) {
+    badge.textContent = '取得失敗';
+    badge.className = 'status-badge';
+    toast(err.message);
+  }
+}
+
+async function sendLockCommand(lock, command) {
+  try {
+    await api(`/devices/${lock.deviceId}/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ command, parameter: 'default', commandType: 'command' }),
+    });
+    toast(`${lock.deviceName} に ${command === 'lock' ? '施錠' : '解錠'} を送信しました`);
+    setTimeout(() => refreshLockStatus(lock), 1500);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+const AIRCON_MODES = [
+  { value: '1', label: '自動' },
+  { value: '2', label: '冷房' },
+  { value: '3', label: '除湿' },
+  { value: '4', label: '送風' },
+  { value: '5', label: '暖房' },
+];
+const AIRCON_FANS = [
+  { value: '1', label: '自動' },
+  { value: '2', label: '弱' },
+  { value: '3', label: '中' },
+  { value: '4', label: '強' },
+];
+
+function renderAircons(aircons) {
+  const grid = document.getElementById('aircon-grid');
+  grid.innerHTML = '';
+  if (aircons.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">エアコン(赤外線)デバイスが見つかりません</p>';
+    return;
+  }
+  for (const ac of aircons) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-title">❄️ ${ac.deviceName}</div>
+      <div class="card-sub">赤外線経由のため実際の状態は確認できません(最後に送信した設定を表示)</div>
+      <div class="aircon-controls">
+        <div class="temp-row">
+          <button class="small secondary" data-action="temp-down">−</button>
+          <span class="temp-value" id="ac-temp-${ac.deviceId}">26</span>
+          <button class="small secondary" data-action="temp-up">+</button>
+          <span style="font-size:13px;color:var(--text-muted);">℃</span>
+        </div>
+        <div class="select-row">
+          <select id="ac-mode-${ac.deviceId}">
+            ${AIRCON_MODES.map((m) => `<option value="${m.value}">${m.label}</option>`).join('')}
+          </select>
+          <select id="ac-fan-${ac.deviceId}">
+            ${AIRCON_FANS.map((f) => `<option value="${f.value}">${f.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="small" data-action="on">ON</button>
+          <button class="small secondary" data-action="off">OFF</button>
+        </div>
+      </div>
+    `;
+    const tempEl = card.querySelector(`#ac-temp-${ac.deviceId}`);
+    card.querySelector('[data-action="temp-down"]').addEventListener('click', () => {
+      tempEl.textContent = Math.max(16, parseInt(tempEl.textContent, 10) - 1);
+    });
+    card.querySelector('[data-action="temp-up"]').addEventListener('click', () => {
+      tempEl.textContent = Math.min(30, parseInt(tempEl.textContent, 10) + 1);
+    });
+    card.querySelector('[data-action="on"]').addEventListener('click', () => sendAirconCommand(ac, 'on'));
+    card.querySelector('[data-action="off"]').addEventListener('click', () => sendAirconCommand(ac, 'off'));
+    grid.appendChild(card);
+  }
+}
+
+async function sendAirconCommand(ac, power) {
+  const temp = document.getElementById(`ac-temp-${ac.deviceId}`).textContent;
+  const mode = document.getElementById(`ac-mode-${ac.deviceId}`).value;
+  const fan = document.getElementById(`ac-fan-${ac.deviceId}`).value;
+  const parameter = `${temp},${mode},${fan},${power}`;
+  try {
+    await api(`/devices/${ac.deviceId}/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ command: 'setAll', parameter, commandType: 'command' }),
+    });
+    toast(`${ac.deviceName} に設定を送信しました (${parameter})`);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+function renderOthers(others) {
+  const grid = document.getElementById('other-grid');
+  grid.innerHTML = '';
+  if (others.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">他のデバイスはありません</p>';
+    return;
+  }
+  for (const d of others) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-title">📦 ${d.deviceName}</div>
+      <div class="card-sub">${d.deviceType || d.remoteType || ''}</div>
+      <span class="status-badge">情報表示のみ</span>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+// ---------- init ----------
+const savedToken = sessionStorage.getItem('sb_token');
+if (savedToken) {
+  token = savedToken;
+  showApp();
+}
+</script>
+</body>
+</html>
